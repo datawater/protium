@@ -1,73 +1,110 @@
 #![allow(dead_code, unused_variables)]
 
-use crate::board::{Board, BitBoard, self};
+use crate::board::{Board, BitBoard, self, pieces::*};
+use super::constants::{*, magics::*};
 
-type AttackGeneratorFunction = fn(Board, u8) -> BitBoard;
+pub(super) type AttackGeneratorFunction = fn(&Board, u8) -> BitBoard;
 
-// NON SLIDING
-
-fn generate_attacks_pawn(board: Board, square: u8) -> BitBoard {
-    todo!();
-}
-
-fn generate_attacks_knight(board: Board, square: u8) -> BitBoard {
-    todo!();
-}
-
-fn generate_attacks_king(board: Board, square: u8) -> BitBoard {
-    todo!();
-}
-
-// SLIDING
-
-fn generate_attacks_bishop(board: Board, square: u8) -> BitBoard {
-    todo!();
-}
-
-fn generate_attacks_rook(board: Board, square: u8) -> BitBoard {
-    todo!();
-}
-
-fn generate_attacks_queen(board: Board, square: u8) -> BitBoard {
-    todo!();
-}
-
-// OVERALL
-
-const PIECE_TO_ATTACK_FUNCTION: [AttackGeneratorFunction; 12] = [
-    generate_attacks_king,
-    generate_attacks_king,
-    generate_attacks_queen,
-    generate_attacks_queen,
-    generate_attacks_rook,
-    generate_attacks_rook,
-    generate_attacks_bishop,
-    generate_attacks_bishop,
-    generate_attacks_knight,
-    generate_attacks_knight,
-    generate_attacks_pawn,
-    generate_attacks_pawn,
+const PIECE_TO_ATTACK_FUNCTION: [AttackGeneratorFunction; 10] = [
+    Board::generate_attacks_king,
+    Board::generate_attacks_king,
+    Board::generate_attacks_queen,
+    Board::generate_attacks_queen,
+    Board::generate_attacks_rook,
+    Board::generate_attacks_rook,
+    Board::generate_attacks_bishop,
+    Board::generate_attacks_bishop,
+    Board::generate_attacks_knight,
+    Board::generate_attacks_knight
 ];
 
-impl Board {
+impl Board {  
+    // NON-SLIDING
+    // Note: You can abstract with a general function which's signature would look
+    //       something like this: fn(&self, pointer_to_lookup_table: &[BitBoard], square: u8)
+    //       But that much abstraction is not necessary and does more harm than good.
+    pub(super) fn generate_attacks_pawn(&self, square: u8, side: board::BoardSide) -> BitBoard {
+        if side == board::BoardSide::White {
+            BitBoard(PAWN_WHITE_ATTACKS[square as usize])
+        } else {
+            BitBoard(PAWN_BLACK_ATTACKS[square as usize])
+        }
+    }
+
+    pub(super) fn generate_attacks_knight(&self, square: u8) -> BitBoard {
+        BitBoard(KNIGHT_ATTACKS[square as usize])
+    }
+
+    pub(super) fn generate_attacks_king(&self, square: u8) -> BitBoard {
+        BitBoard(KING_ATTACKS[square as usize])
+    }
+
+    // SLIDING
+
+    #[inline(always)]
+    fn magic_index(&self, entry: &MagicEntry) -> usize {
+        let blockers = self.pieces[ALL_PIECES].0 & entry.mask;
+        let hash = blockers.wrapping_mul(entry.magic);
+        let index = (hash >> entry.shift) as usize;
+
+        entry.offset as usize + index
+    } 
+
+    pub(super) fn generate_attacks_bishop(&self, square: u8) -> BitBoard { 
+        BitBoard(BISHOP_MOVES[self.magic_index(&BISHOP_MAGICS[square as usize])])
+    }
+
+    pub(super) fn generate_attacks_rook(&self, square: u8) -> BitBoard {
+        BitBoard(ROOK_MOVES[self.magic_index(&ROOK_MAGICS[square as usize])])
+    }
+
+    pub(super) fn generate_attacks_queen(&self, square: u8) -> BitBoard {
+        self.generate_attacks_bishop(square) | self.generate_attacks_rook(square)
+    }
+
+    // OVERALL
+    #[inline(always)]
+    pub fn generate_attacks_piece_on_square(&self, piece: usize, square: u8) -> BitBoard {
+        // This kinda bothers me but it's one if statement, it shouldn't be that bad
+        assert!(piece <= BLACK_PAWN);
+
+        // If piece is more than 9, so piece is pawn
+        if piece > 9 {
+            Board::generate_attacks_pawn(&self, square, 
+                unsafe { std::mem::transmute((piece % 2) as u8) }
+            )
+        } else {
+            // I use a table of function pointers so the lookup is fast and easy
+            PIECE_TO_ATTACK_FUNCTION[piece](self, square)
+        }
+    }
+
+    pub fn generate_attacks_piece(&self, piece: usize) -> BitBoard {
+        let mut n = self.pieces[piece].0;
+        let mut attacks = BitBoard(0);
+    
+        while n != 0 {
+            let removed_square                = n & (n - 1);
+            // Get's the position of the LSB.
+            let square_of_rightest_most_piece = (n - removed_square).trailing_zeros() as u8;
+            n = removed_square;
+            
+            attacks |= self.generate_attacks_piece_on_square(piece, square_of_rightest_most_piece);
+        }
+        
+        attacks
+    }
+
     pub fn generate_attacks(&mut self) {
         for (i, n) in self.pieces.iter().enumerate() {
             if i > board::pieces::BLACK_PAWN {break;}
 
-            let mut n = n.0;
-            
-            while n != 0 {
-                let removed_square                = n & (n - 1);
-                let square_of_rightest_most_piece = (n - removed_square).leading_ones();
-                n = removed_square;
+            let attacks = self.generate_attacks_piece(i);
 
-                let attacks = PIECE_TO_ATTACK_FUNCTION[i](*self, square_of_rightest_most_piece as u8);
-
-                if self.side == board::BoardSide::White {
-                    self.attacks[board::attacks::WHITE_ATTACKS] |= attacks;
-                } else {
-                    self.attacks[board::attacks::BLACK_ATTACKS] |= attacks;
-                }
+            if i % 2 == 0 {
+                self.attacks[board::attacks::WHITE_ATTACKS] |= attacks;
+            } else {
+                self.attacks[board::attacks::BLACK_ATTACKS] |= attacks;
             }
         }
     }

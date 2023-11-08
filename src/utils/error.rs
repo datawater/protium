@@ -14,3 +14,18 @@ macro_rules! pt_error {
         }
     }
 }
+
+#[macro_export]
+macro_rules! nd_todo {
+    () => {
+        eprintln!("[TODO] Unimplemented! {}:{}", file!(), line!());
+    };
+
+    ($fmt:expr) => {
+        eprintln!("[TODO] {}. {}:{}", $fmt, file!(), line!());
+    };
+
+    ($fmt:expr, $($arg:expr),*) => {
+        eprintln!("[TODO] {}. {}:{}", format!($fmt, $($arg),*), file!(), line!());
+    };
+}

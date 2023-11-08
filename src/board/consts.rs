@@ -28,7 +28,7 @@ pub mod pieces {
 
 pub mod attacks {
     pub const WHITE_ATTACKS: usize = 0;
-    pub const BLACK_ATTACKS: usize = 0;
+    pub const BLACK_ATTACKS: usize = 1;
 }
 
 pub mod fens {
