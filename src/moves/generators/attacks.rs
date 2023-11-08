@@ -70,7 +70,7 @@ impl Board {
 
         // If piece is more than 9, so piece is pawn
         if piece > 9 {
-            Board::generate_attacks_pawn(&self, square, 
+            Board::generate_attacks_pawn(self, square, 
                 unsafe { std::mem::transmute((piece % 2) as u8) }
             )
         } else {
