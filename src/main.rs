@@ -3,10 +3,9 @@
 mod board;
 mod utils;
 mod moves;
+mod version;
 
 fn main() {
-    println!("Hello, world!");
-
-    let board = board::Board::from("8/8/8/8/8/3p4/2pRP3/3P4 w - - 0 1");
-    println!("{:#?}", board);
+    println!("protium {}.{}.{} Copyright (C) 2023 datawater", version::MAJOR, version::MINOR, version::PATCH);
+    println!("The project is currently under development. It doesn't do anything (yet)");
 }

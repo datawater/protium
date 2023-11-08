@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::board::Board;
 use crate::moves::Move;
 use crate::nd_todo;
