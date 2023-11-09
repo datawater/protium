@@ -60,7 +60,7 @@ impl Board {
         let mut en_passants = 0u64;
 
         if piece % 2 == 0 {
-            // TODO: Put single move in a lookup table
+            // TODO(#2): Put single move in a lookup table
             let single_move = pawn << 8     & !self.pieces[ALL_PIECES].0;
             let double_move = ((single_move & RANK_MASK[2]) << 8) & !self.pieces[ALL_PIECES].0;
 
