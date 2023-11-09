@@ -5,7 +5,7 @@ use super::constants::{*, magics::*};
 
 pub(super) type AttackGeneratorFunction = fn(&Board, u8) -> BitBoard;
 
-const PIECE_TO_ATTACK_FUNCTION: [AttackGeneratorFunction; 10] = [
+pub(super) const PIECE_TO_ATTACK_FUNCTION: [AttackGeneratorFunction; 10] = [
     Board::generate_attacks_king,
     Board::generate_attacks_king,
     Board::generate_attacks_queen,
@@ -15,7 +15,7 @@ const PIECE_TO_ATTACK_FUNCTION: [AttackGeneratorFunction; 10] = [
     Board::generate_attacks_bishop,
     Board::generate_attacks_bishop,
     Board::generate_attacks_knight,
-    Board::generate_attacks_knight
+    Board::generate_attacks_knight,
 ];
 
 impl Board {  
@@ -23,6 +23,7 @@ impl Board {
     // Note: You can abstract with a general function which's signature would look
     //       something like this: fn(&self, pointer_to_lookup_table: &[BitBoard], square: u8)
     //       But that much abstraction is not necessary and does more harm than good.
+    #[inline(always)]
     pub(super) fn generate_attacks_pawn(&self, square: u8, side: board::BoardSide) -> BitBoard {
         if side == board::BoardSide::White {
             BitBoard(PAWN_WHITE_ATTACKS[square as usize])
@@ -31,10 +32,12 @@ impl Board {
         }
     }
 
+    #[inline(always)]
     pub(super) fn generate_attacks_knight(&self, square: u8) -> BitBoard {
         BitBoard(KNIGHT_ATTACKS[square as usize])
     }
 
+    #[inline(always)]
     pub(super) fn generate_attacks_king(&self, square: u8) -> BitBoard {
         BitBoard(KING_ATTACKS[square as usize])
     }
@@ -50,14 +53,17 @@ impl Board {
         entry.offset as usize + index
     } 
 
+    #[inline(always)]
     pub(super) fn generate_attacks_bishop(&self, square: u8) -> BitBoard { 
         BitBoard(BISHOP_MOVES[self.magic_index(&BISHOP_MAGICS[square as usize])])
     }
 
+    #[inline(always)]
     pub(super) fn generate_attacks_rook(&self, square: u8) -> BitBoard {
         BitBoard(ROOK_MOVES[self.magic_index(&ROOK_MAGICS[square as usize])])
     }
 
+    #[inline(always)]
     pub(super) fn generate_attacks_queen(&self, square: u8) -> BitBoard {
         self.generate_attacks_bishop(square) | self.generate_attacks_rook(square)
     }
@@ -79,6 +85,7 @@ impl Board {
         }
     }
 
+    #[inline(always)]
     pub fn generate_attacks_piece(&self, piece: usize) -> BitBoard {
         let mut n = self.pieces[piece].0;
         let mut attacks = BitBoard(0);

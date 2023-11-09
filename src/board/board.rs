@@ -131,8 +131,9 @@ impl From<&str> for Board {
 
                     if string[i] != b'-' {
                         to_return.en_passant_square = BitBoard(
+                            1 << (
                             (string[i + 1] as u64 - '1' as u64) * 8
-                          +  string[i]     as u64 - 'a' as u64);
+                          +  string[i]     as u64 - 'a' as u64));
                     } else {
                         to_return.en_passant_square = BitBoard(0);
                     }

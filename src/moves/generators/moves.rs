@@ -1,13 +1,197 @@
 #![allow(dead_code)]
 
-use crate::board::Board;
+use crate::board::attacks::{BLACK_ATTACKS, WHITE_ATTACKS};
+use crate::board::{Board, BitBoard, pieces::*, self};
 use crate::moves::Move;
-use crate::nd_todo;
+use super::constants::*;
+
+
+type MoveGeneratorFunction = fn(&Board, u8, &mut Vec<Move>, usize);
+
+pub(super) const PIECE_TO_MOVE_FUNCTION: [MoveGeneratorFunction; 12] = [
+    Board::generate_moves_king,
+    Board::generate_moves_king,
+    Board::generate_moves_queen,
+    Board::generate_moves_queen,
+    Board::generate_moves_rook,
+    Board::generate_moves_rook,
+    Board::generate_moves_bishop,
+    Board::generate_moves_bishop,
+    Board::generate_moves_knight,
+    Board::generate_moves_knight,
+    Board::generate_moves_pawn,
+    Board::generate_moves_pawn,
+];
 
 impl Board {
+    #[inline(always)]
+    fn generate_moves_general(&self, square: u8, vector: &mut Vec<Move>, piece: usize, mask: u64) {
+        assert!(piece <= BLACK_PAWN);
+
+        // TODO: Handle checkmate
+        let mut moves = self.generate_attacks_piece_on_square(piece, square).0
+                           & !self.pieces[if piece % 2 == 0 {WHITE_PIECES} else {BLACK_PIECES}].0
+                           & !self.pieces[WHITE_KING].0
+                           & !self.pieces[BLACK_KING].0
+                           & !mask;
+
+        let from = 1 << square;
+
+        while moves != 0 {
+            let removed = moves & (moves - 1);
+
+            vector.push(Move {
+                piece: piece,
+                from: BitBoard(from),
+                to: BitBoard(moves - removed),
+                is_castle: false,
+                is_en_passant: false,
+                promotes_to: usize::MAX,
+            });
+
+            moves = removed;
+        }
+    }
+
     // NON-SLIDING
-    pub fn generate_moves(&self) -> Vec<Move> {
-        nd_todo!();
-        vec![]
+    fn generate_moves_pawn(&self, square: u8, vector: &mut Vec<Move>, piece: usize) {
+        let pawn = 1u64 << square;
+        let mut moves_bb;
+        let mut en_passants = 0u64;
+
+        if piece % 2 == 0 {
+            // TODO: Put single move in a lookup table
+            let single_move = pawn << 8     & !self.pieces[ALL_PIECES].0;
+            let double_move = ((single_move & RANK_MASK[2]) << 8) & !self.pieces[ALL_PIECES].0;
+
+            moves_bb = single_move | double_move | (PAWN_WHITE_ATTACKS[square as usize] & self.pieces[BLACK_PIECES].0);
+
+            if (pawn & RANK_MASK[4]) != 0 && ((self.en_passant_square.0 & PAWN_WHITE_ATTACKS[square as usize]) != 0) {
+                en_passants |= self.en_passant_square.0;
+            }
+        } else {
+            let single_move = pawn >> 8     & !self.pieces[ALL_PIECES].0;
+            let double_move = ((single_move & RANK_MASK[5]) >> 8) & !self.pieces[ALL_PIECES].0;
+
+            moves_bb = single_move | double_move | (PAWN_BLACK_ATTACKS[square as usize] & self.pieces[WHITE_PIECES].0);
+
+            if (pawn & RANK_MASK[3]) != 0 && (self.en_passant_square.0 & PAWN_BLACK_ATTACKS[square as usize] != 0) {
+                en_passants |= self.en_passant_square.0;
+            }
+        }
+
+        while moves_bb != 0 {
+            let removed = moves_bb & (moves_bb - 1);
+            let move_bb = moves_bb - removed;
+
+            if (move_bb & RANK_MASK[0]) != 0 || (move_bb & RANK_MASK[7]) != 0 {
+                let start = if piece % 2 == 0 {2} else {3};
+                let mut i = start;
+
+                while i < WHITE_PAWN {
+                    vector.push(Move {
+                        piece: piece,
+                        from: BitBoard(pawn),
+                        to: BitBoard(move_bb),
+                        is_castle: false,
+                        is_en_passant: false,
+                        promotes_to: i
+                    });
+
+                    i += 2;
+                }
+
+                moves_bb = removed;
+                continue;
+            }
+
+            vector.push(Move {
+                piece: piece,
+                from: BitBoard(pawn),
+                to: BitBoard(move_bb),
+                is_castle: false,
+                is_en_passant: false,
+                promotes_to: usize::MAX
+            });
+
+            moves_bb = removed;
+        }
+
+        while en_passants != 0 {
+            let removed = en_passants & (en_passants - 1);
+            let move_bb = en_passants - removed;
+
+            vector.push(Move {
+                piece: piece,
+                from: BitBoard(pawn),
+                to: BitBoard(move_bb),
+                is_castle: false,
+                is_en_passant: true,
+                promotes_to: usize::MAX
+            });
+
+            en_passants = removed;
+        }
+    }
+
+    fn generate_moves_knight(&self, square: u8, vector: &mut Vec<Move>, piece: usize) {
+        self.generate_moves_general(square, vector, piece, 0)
+    }
+
+    fn generate_moves_king(&self, square: u8, vector: &mut Vec<Move>, piece: usize) {
+        // TODO: Castling
+        self.generate_moves_general(square, vector, piece, 
+                            if piece % 2 == 0 {self.attacks[BLACK_ATTACKS].0} else {self.attacks[WHITE_ATTACKS].0});
+    }
+
+    // SLIDING
+    fn generate_moves_bishop(&self, square: u8, vector: &mut Vec<Move>, piece: usize) {
+        self.generate_moves_general(square, vector, piece, 0)
+    }
+
+    fn generate_moves_rook(&self, square: u8, vector: &mut Vec<Move>, piece: usize) {
+        self.generate_moves_general(square, vector, piece, 0)
+    }
+
+    fn generate_moves_queen(&self, square: u8, vector: &mut Vec<Move>, piece: usize) {
+        self.generate_moves_general(square, vector, piece, 0)
+    }
+
+    #[inline(always)]
+    pub fn generate_moves_piece_on_square(&self, piece_i: usize, square: u8, vector: &mut Vec<Move>) {
+        PIECE_TO_MOVE_FUNCTION[piece_i](self, square, vector, piece_i);
+    }
+
+    #[inline(always)]
+    pub fn generate_moves_piece(&self, piece_i: usize, vector: &mut Vec<Move>) {
+        let mut piece = self.pieces[piece_i].0;
+        
+        while piece != 0 {
+            let removed = piece & (piece - 1);
+            let square = (piece - removed).trailing_zeros() as u8;
+
+            self.generate_moves_piece_on_square(piece_i, square, vector);
+
+            piece = removed;
+        }
+    }
+
+    // OVERALL
+    pub fn generate_moves(&self, generate_for_both_colours: bool) -> Vec<Move> {
+        // Interesting source: https://chess.stcackexchange.com/questions/23135/what-is-the-average-number-of-legal-moves-per-turn
+        // But this analyses legal moves, not pseudo-legal. Since we can only generate pseudo-legal moves, I'll double it to around 70
+        let mut moves_vec: Vec<Move> = Vec::with_capacity(70);
+
+        let start = if generate_for_both_colours == true 
+                         || self.side == board::BoardSide::White {0} else {1};
+
+        let skip = if generate_for_both_colours == true {1} else {2};
+        let mut i = start;
+
+        while i <= BLACK_PAWN {
+            self.generate_moves_piece(i, &mut moves_vec);
+            i += skip;
+        }
+        moves_vec
     }
 }
