@@ -139,7 +139,7 @@ impl Board {
     }
 
     fn generate_moves_king(&self, square: u8, vector: &mut Vec<Move>, piece: usize) {
-        // TODO: Castling
+        // TODO(#3): Castling
         self.generate_moves_general(square, vector, piece, 
                             if piece % 2 == 0 {self.attacks[BLACK_ATTACKS].0} else {self.attacks[WHITE_ATTACKS].0});
     }
