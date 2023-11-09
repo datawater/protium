@@ -28,7 +28,7 @@ impl Board {
     fn generate_moves_general(&self, square: u8, vector: &mut Vec<Move>, piece: usize, mask: u64) {
         assert!(piece <= BLACK_PAWN);
 
-        // TODO: Handle checkmate
+        // TODO(#1): Handle checkmate
         let mut moves = self.generate_attacks_piece_on_square(piece, square).0
                            & !self.pieces[if piece % 2 == 0 {WHITE_PIECES} else {BLACK_PIECES}].0
                            & !self.pieces[WHITE_KING].0
