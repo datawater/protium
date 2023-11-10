@@ -90,7 +90,32 @@ mod pt_moves_test {
         
         assert_eq!(moves_vec.len(), 2);
 
-        // TODO: Castling
+        moves_vec.clear();
+
+        // Castling tests
+        // White castling
+        let board_3 = Board::from("8/8/8/8/8/8/8/R3K2R w KQ - 0 1");
+        board_3.generate_moves_piece(WHITE_KING, &mut moves_vec);
+        
+        assert_eq!(moves_vec.len(), 7);
+
+        moves_vec.clear();
+
+        // Black castling
+        let board_4 = Board::from("r3k2r/8/8/8/8/8/8/8 b kq - 0 1");
+        board_4.generate_moves_piece(BLACK_KING, &mut moves_vec);
+        
+        assert_eq!(moves_vec.len(), 7);
+
+        println!("{:#?}", moves_vec);        
+
+        moves_vec.clear();
+
+        // Castling blocked by piece and check
+        let board_4 = Board::from("8/8/8/8/5b2/8/8/R3Kn1R w KQ - 0 1");
+        board_4.generate_moves_piece(WHITE_KING, &mut moves_vec);
+        
+        assert_eq!(moves_vec.len(), 4);
     }
 
     #[test]

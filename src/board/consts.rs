@@ -65,3 +65,13 @@ pub(super) const ICON_TO_PIECE: Map<&str, usize> = phf_map! {
     "♟︎" => pieces::WHITE_PAWN,
     "♙" => pieces::BLACK_PAWN,
 };
+
+pub mod castle_masks {
+    pub const CASTLE_MASK_CHECK: [u64; 4] = [
+        96, 12, 6917529027641081856, 864691128455135232
+    ];
+
+    pub const CASTLE_MASK_PIECES: [u64; 4] = [
+        96, 14, 6917529027641081856, 1008806316530991104
+    ];
+}

@@ -1,7 +1,10 @@
 #![allow(dead_code)]
 
 use crate::board::attacks::{BLACK_ATTACKS, WHITE_ATTACKS};
-use crate::board::{Board, BitBoard, pieces::*, self};
+use crate::board::castle_masks::*;
+use crate::board::{Board, BitBoard, pieces::*, self, 
+                   WHITE_CASTLE_KINGSIDE, WHITE_CASTLE_QUEENSIDE, 
+                   BLACK_CASTLE_KINGSIDE, BLACK_CASTLE_QUEENSIDE};
 use crate::moves::Move;
 use super::constants::*;
 
@@ -41,7 +44,7 @@ impl Board {
             let removed = moves & (moves - 1);
 
             vector.push(Move {
-                piece: piece,
+                piece,
                 from: BitBoard(from),
                 to: BitBoard(moves - removed),
                 is_castle: false,
@@ -60,7 +63,6 @@ impl Board {
         let mut en_passants = 0u64;
 
         if piece % 2 == 0 {
-            // TODO(#2): Put single move in a lookup table
             let single_move = pawn << 8     & !self.pieces[ALL_PIECES].0;
             let double_move = ((single_move & RANK_MASK[2]) << 8) & !self.pieces[ALL_PIECES].0;
 
@@ -90,7 +92,7 @@ impl Board {
 
                 while i < WHITE_PAWN {
                     vector.push(Move {
-                        piece: piece,
+                        piece,
                         from: BitBoard(pawn),
                         to: BitBoard(move_bb),
                         is_castle: false,
@@ -106,7 +108,7 @@ impl Board {
             }
 
             vector.push(Move {
-                piece: piece,
+                piece,
                 from: BitBoard(pawn),
                 to: BitBoard(move_bb),
                 is_castle: false,
@@ -122,7 +124,7 @@ impl Board {
             let move_bb = en_passants - removed;
 
             vector.push(Move {
-                piece: piece,
+                piece,
                 from: BitBoard(pawn),
                 to: BitBoard(move_bb),
                 is_castle: false,
@@ -139,9 +141,64 @@ impl Board {
     }
 
     fn generate_moves_king(&self, square: u8, vector: &mut Vec<Move>, piece: usize) {
-        // TODO(#3): Castling
         self.generate_moves_general(square, vector, piece, 
                             if piece % 2 == 0 {self.attacks[BLACK_ATTACKS].0} else {self.attacks[WHITE_ATTACKS].0});
+
+        let ( to_check1, to_check2): (bool, bool);
+        let (index1, index2): (usize, usize);
+        let (mut to1, mut to2): (u64, u64) = (1, 1);
+        let attacks: u64;
+
+        if piece % 2 == 0 {
+            to_check1 = self.castle_allowed[WHITE_CASTLE_KINGSIDE];
+            to_check2 = self.castle_allowed[WHITE_CASTLE_QUEENSIDE];
+
+            index1 = WHITE_CASTLE_KINGSIDE;
+            index2 = WHITE_CASTLE_QUEENSIDE;
+
+            to1 <<= 6;
+            to2 <<= 2;
+
+            attacks = self.attacks[BLACK_ATTACKS].0;
+        } else {
+            to_check1 = self.castle_allowed[BLACK_CASTLE_KINGSIDE];
+            to_check2 = self.castle_allowed[BLACK_CASTLE_QUEENSIDE];
+
+            index1 = BLACK_CASTLE_KINGSIDE;
+            index2 = BLACK_CASTLE_QUEENSIDE;
+
+            to1 <<= 6 + 8 * 7;
+            to2 <<= 2 + 8 * 7;
+
+            attacks = self.attacks[WHITE_ATTACKS].0;
+        }
+
+        if to_check1 && ((CASTLE_MASK_CHECK[index1]  & attacks) == 0)
+                     && ((CASTLE_MASK_PIECES[index1] & self.pieces[ALL_PIECES].0) == 0) {
+
+                        vector.push(Move {
+                            piece,
+                            from: BitBoard(1u64 << square),
+                            to: BitBoard(to1),
+                            is_castle: true,
+                            is_en_passant: false,
+                            promotes_to: usize::MAX
+                        });
+        }
+
+        if to_check2 && ((CASTLE_MASK_CHECK[index2]  & attacks) == 0)
+                     && ((CASTLE_MASK_PIECES[index2] & self.pieces[ALL_PIECES].0) == 0) {
+
+                        vector.push(Move {
+                            piece,
+                            from: BitBoard(1u64 << square),
+                            to: BitBoard(to2),
+                            is_castle: true,
+                            is_en_passant: false,
+                            promotes_to: usize::MAX
+                        });
+        }
+
     }
 
     // SLIDING
@@ -182,10 +239,10 @@ impl Board {
         // But this analyses legal moves, not pseudo-legal. Since we can only generate pseudo-legal moves, I'll double it to around 70
         let mut moves_vec: Vec<Move> = Vec::with_capacity(70);
 
-        let start = if generate_for_both_colours == true 
+        let start = if generate_for_both_colours
                          || self.side == board::BoardSide::White {0} else {1};
 
-        let skip = if generate_for_both_colours == true {1} else {2};
+        let skip = if generate_for_both_colours {1} else {2};
         let mut i = start;
 
         while i <= BLACK_PAWN {
