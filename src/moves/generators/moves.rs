@@ -1,9 +1,12 @@
 #![allow(dead_code)]
 
+// TODO: Handle check !!!
+// TODO(#1): Handle checkmate !!!
+
 use crate::board::attacks::{BLACK_ATTACKS, WHITE_ATTACKS};
 use crate::board::castle_masks::*;
-use crate::board::{Board, BitBoard, pieces::*, self, 
-                   WHITE_CASTLE_KINGSIDE, WHITE_CASTLE_QUEENSIDE, 
+use crate::board::{Board, BitBoard, pieces::*, self,
+                   WHITE_CASTLE_KINGSIDE, WHITE_CASTLE_QUEENSIDE,
                    BLACK_CASTLE_KINGSIDE, BLACK_CASTLE_QUEENSIDE};
 use crate::moves::Move;
 use super::constants::*;
@@ -31,7 +34,6 @@ impl Board {
     fn generate_moves_general(&self, square: u8, vector: &mut Vec<Move>, piece: usize, mask: u64) {
         assert!(piece <= BLACK_PAWN);
 
-        // TODO(#1): Handle checkmate
         let mut moves = self.generate_attacks_piece_on_square(piece, square).0
                            & !self.pieces[if piece % 2 == 0 {WHITE_PIECES} else {BLACK_PIECES}].0
                            & !self.pieces[WHITE_KING].0
@@ -141,7 +143,7 @@ impl Board {
     }
 
     fn generate_moves_king(&self, square: u8, vector: &mut Vec<Move>, piece: usize) {
-        self.generate_moves_general(square, vector, piece, 
+        self.generate_moves_general(square, vector, piece,
                             if piece % 2 == 0 {self.attacks[BLACK_ATTACKS].0} else {self.attacks[WHITE_ATTACKS].0});
 
         let ( to_check1, to_check2): (bool, bool);
@@ -222,7 +224,7 @@ impl Board {
     #[inline(always)]
     pub fn generate_moves_piece(&self, piece_i: usize, vector: &mut Vec<Move>) {
         let mut piece = self.pieces[piece_i].0;
-        
+
         while piece != 0 {
             let removed = piece & (piece - 1);
             let square = (piece - removed).trailing_zeros() as u8;

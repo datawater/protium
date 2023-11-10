@@ -31,10 +31,8 @@ pub mod attacks {
     pub const BLACK_ATTACKS: usize = 1;
 }
 
-pub mod fens {
-    pub const STARTING_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-    pub const EMPTY_FEN:    &str = "8/8/8/8/8/8/8/8 w - - 0 1";
-}
+pub const STARTING_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+pub const EMPTY_FEN:    &str = "8/8/8/8/8/8/8/8 w - - 0 1";
 
 pub(super) const CHAR_TO_PIECE: Map<&str, usize> = phf_map! {
     "K" => pieces::WHITE_KING,
