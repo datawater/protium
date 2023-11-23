@@ -5,11 +5,11 @@ use crate::board::castle_masks::*;
 use crate::board::{Board, BitBoard, pieces::*, self, 
                    WHITE_CASTLE_KINGSIDE, WHITE_CASTLE_QUEENSIDE, 
                    BLACK_CASTLE_KINGSIDE, BLACK_CASTLE_QUEENSIDE};
-use crate::moves::Move;
+use crate::moves::{Move, self};
 use super::constants::*;
 
 
-type MoveGeneratorFunction = fn(&Board, u8, &mut Vec<Move>, usize);
+type MoveGeneratorFunction = fn(&Board, u8, &mut Vec<Move>, usize, u64);
 
 pub(super) const PIECE_TO_MOVE_FUNCTION: [MoveGeneratorFunction; 12] = [
     Board::generate_moves_king,
@@ -57,7 +57,7 @@ impl Board {
     }
 
     // NON-SLIDING
-    fn generate_moves_pawn(&self, square: u8, vector: &mut Vec<Move>, piece: usize) {
+    fn generate_moves_pawn(&self, square: u8, vector: &mut Vec<Move>, piece: usize, mask: u64) {
         let pawn = 1u64 << square;
         let mut moves_bb;
         let mut en_passants = 0u64;
@@ -84,7 +84,8 @@ impl Board {
 
         while moves_bb != 0 {
             let removed = moves_bb & (moves_bb - 1);
-            let move_bb = moves_bb - removed;
+            let move_bb = (moves_bb - removed) & !mask;
+            if move_bb == 0 {moves_bb = removed; continue;}
 
             if (move_bb & RANK_MASK[0]) != 0 || (move_bb & RANK_MASK[7]) != 0 {
                 let start = if piece % 2 == 0 {2} else {3};
@@ -121,7 +122,9 @@ impl Board {
 
         while en_passants != 0 {
             let removed = en_passants & (en_passants - 1);
-            let move_bb = en_passants - removed;
+            let move_bb = (en_passants - removed) & !mask;
+
+            if move_bb == 0 {en_passants = removed; continue;}
 
             vector.push(Move {
                 piece,
@@ -136,11 +139,11 @@ impl Board {
         }
     }
 
-    fn generate_moves_knight(&self, square: u8, vector: &mut Vec<Move>, piece: usize) {
-        self.generate_moves_general(square, vector, piece, 0)
+    fn generate_moves_knight(&self, square: u8, vector: &mut Vec<Move>, piece: usize, mask: u64) {
+        self.generate_moves_general(square, vector, piece, mask)
     }
 
-    fn generate_moves_king(&self, square: u8, vector: &mut Vec<Move>, piece: usize) {
+    fn generate_moves_king(&self, square: u8, vector: &mut Vec<Move>, piece: usize, _mask: u64) {
         self.generate_moves_general(square, vector, piece, 
                             if piece % 2 == 0 {self.attacks[BLACK_ATTACKS].0} else {self.attacks[WHITE_ATTACKS].0});
 
@@ -202,32 +205,37 @@ impl Board {
     }
 
     // SLIDING
-    fn generate_moves_bishop(&self, square: u8, vector: &mut Vec<Move>, piece: usize) {
-        self.generate_moves_general(square, vector, piece, 0)
+    fn generate_moves_bishop(&self, square: u8, vector: &mut Vec<Move>, piece: usize, mask: u64) {
+        self.generate_moves_general(square, vector, piece, mask)
     }
 
-    fn generate_moves_rook(&self, square: u8, vector: &mut Vec<Move>, piece: usize) {
-        self.generate_moves_general(square, vector, piece, 0)
+    fn generate_moves_rook(&self, square: u8, vector: &mut Vec<Move>, piece: usize, mask: u64) {
+        self.generate_moves_general(square, vector, piece, mask)
     }
 
-    fn generate_moves_queen(&self, square: u8, vector: &mut Vec<Move>, piece: usize) {
-        self.generate_moves_general(square, vector, piece, 0)
+    fn generate_moves_queen(&self, square: u8, vector: &mut Vec<Move>, piece: usize, mask: u64) {
+        self.generate_moves_general(square, vector, piece, mask)
     }
 
     #[inline(always)]
-    pub fn generate_moves_piece_on_square(&self, piece_i: usize, square: u8, vector: &mut Vec<Move>) {
-        PIECE_TO_MOVE_FUNCTION[piece_i](self, square, vector, piece_i);
+    pub fn generate_moves_piece_on_square(&self, piece_i: usize, square: u8, vector: &mut Vec<Move>, mask: u64) {
+        PIECE_TO_MOVE_FUNCTION[piece_i](self, square, vector, piece_i, mask);
     }
 
     #[inline(always)]
     pub fn generate_moves_piece(&self, piece_i: usize, vector: &mut Vec<Move>) {
         let mut piece = self.pieces[piece_i].0;
-        
+
+        let mut mask: u64 = 0;
+        if self.in_check && (piece_i != 0 && piece_i != 1) {
+            mask = !(self.check_ray_mask.0 & self.pieces[if self.side == board::BoardSide::White {BLACK_PIECES} else {WHITE_PIECES}].0);
+        }
+
         while piece != 0 {
             let removed = piece & (piece - 1);
             let square = (piece - removed).trailing_zeros() as u8;
 
-            self.generate_moves_piece_on_square(piece_i, square, vector);
+            self.generate_moves_piece_on_square(piece_i, square, vector, mask);
 
             piece = removed;
         }
@@ -244,6 +252,10 @@ impl Board {
 
         let skip = if generate_for_both_colours {1} else {2};
         let mut i = start;
+
+        if self.in_double_check {
+            self.generate_moves_piece(start, &mut moves_vec); return moves_vec;
+        }
 
         while i <= BLACK_PAWN {
             self.generate_moves_piece(i, &mut moves_vec);

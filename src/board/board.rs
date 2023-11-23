@@ -15,7 +15,7 @@ pub enum BoardSide {
     Black
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 pub struct Board {
     pub pieces:  [BitBoard; 15],
     pub attacks: [BitBoard; 2],
@@ -23,8 +23,11 @@ pub struct Board {
     pub en_passant_square: BitBoard,
 
     pub castle_allowed: [bool; 4],
+    pub in_check: bool,
+    pub in_double_check: bool,
+    pub check_ray_mask: BitBoard,
 
-    print_using: bool
+    print_using: bool,
 }
 
 #[inline]
@@ -47,6 +50,22 @@ impl PartialEq for Board {
         let castle_eq = self.castle_allowed.iter().zip(other.castle_allowed.iter()).all(|(a,b)| a == b);
 
         pieces_eq && attack_eq && castle_eq && self.side == other.side && self.en_passant_square == other.en_passant_square
+    }
+}
+
+impl Default for Board {
+    fn default() -> Self {
+        Self { 
+            pieces: Default::default(),
+            attacks: Default::default(), 
+            side: Default::default(), 
+            en_passant_square: 
+            Default::default(),
+            castle_allowed: Default::default(), 
+            in_check: Default::default(), 
+            in_double_check: Default::default(), 
+            check_ray_mask: BitBoard(u64::MAX), 
+            print_using: Default::default() }
     }
 }
 
@@ -159,6 +178,7 @@ impl From<&str> for Board {
         }
         
         to_return.generate_attacks();
+
         to_return
     }
 }

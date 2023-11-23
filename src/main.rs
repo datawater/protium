@@ -1,5 +1,8 @@
 #![allow(clippy::module_inception)]
 
+#[global_allocator]
+static ALLOC: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
+
 mod board;
 mod utils;
 mod moves;

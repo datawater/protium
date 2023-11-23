@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_variables)]
 
-use crate::board::{Board, BitBoard, self, pieces::*};
+use crate::board::{Board, BitBoard, self, pieces::*, BoardSide};
 use super::constants::{*, magics::*};
 
 pub(super) type AttackGeneratorFunction = fn(&Board, u8) -> BitBoard;
@@ -110,8 +110,22 @@ impl Board {
 
             if i % 2 == 0 {
                 self.attacks[board::attacks::WHITE_ATTACKS] |= attacks;
+
+                if self.side == BoardSide::Black && self.pieces[BLACK_KING].0 & attacks.0 != 0 {
+                    if self.in_check {self.in_double_check = true}
+                    self.in_check = true;
+
+                    self.check_ray_mask = attacks;
+                }
             } else {
                 self.attacks[board::attacks::BLACK_ATTACKS] |= attacks;
+
+                if self.side == BoardSide::White && self.pieces[WHITE_KING].0 & attacks.0 != 0 {
+                    if self.in_check {self.in_double_check = true}
+                    self.in_check = true;
+
+                    self.check_ray_mask = attacks;
+                }
             }
         }
     }

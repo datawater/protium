@@ -1,3 +1,4 @@
+
 #[cfg(test)]
 mod pt_attacks_test {
     use crate::board::{Board, BitBoard, attacks::*};
@@ -207,6 +208,7 @@ mod pt_moves_test {
         let mut moves_vec = Vec::with_capacity(70);
         
         let board_1 = Board::from("1n5B/1p1pKNp1/P2pbp1b/P1R2P2/PP2r1QP/p1nNp1qp/P1P1R3/k1r5 w - - 0 1");
+
         board_1.generate_moves_piece(WHITE_BISHOP, &mut moves_vec);
         
         assert_eq!(moves_vec.len(), 1);
