@@ -5,11 +5,11 @@ use crate::board::castle_masks::*;
 use crate::board::{Board, BitBoard, pieces::*, self, 
                    WHITE_CASTLE_KINGSIDE, WHITE_CASTLE_QUEENSIDE, 
                    BLACK_CASTLE_KINGSIDE, BLACK_CASTLE_QUEENSIDE};
-use crate::moves::{Move, self};
+use crate::moves::Move;
 use super::constants::*;
 
 
-type MoveGeneratorFunction = fn(&Board, u8, &mut Vec<Move>, usize, u64);
+type MoveGeneratorFunction = fn(&mut Board, u8, &mut Vec<Move>, usize, u64);
 
 pub(super) const PIECE_TO_MOVE_FUNCTION: [MoveGeneratorFunction; 12] = [
     Board::generate_moves_king,
@@ -28,15 +28,14 @@ pub(super) const PIECE_TO_MOVE_FUNCTION: [MoveGeneratorFunction; 12] = [
 
 impl Board {
     #[inline(always)]
-    fn generate_moves_general(&self, square: u8, vector: &mut Vec<Move>, piece: usize, mask: u64) {
+    fn generate_moves_general(&mut self, square: u8, vector: &mut Vec<Move>, piece: usize, mask: u64) {
         assert!(piece <= BLACK_PAWN);
 
-        // TODO(#1): Handle checkmate
         let mut moves = self.generate_attacks_piece_on_square(piece, square).0
                            & !self.pieces[if piece % 2 == 0 {WHITE_PIECES} else {BLACK_PIECES}].0
                            & !self.pieces[WHITE_KING].0
                            & !self.pieces[BLACK_KING].0
-                           & !mask;
+                           & mask;
 
         let from = 1 << square;
 
@@ -57,7 +56,7 @@ impl Board {
     }
 
     // NON-SLIDING
-    fn generate_moves_pawn(&self, square: u8, vector: &mut Vec<Move>, piece: usize, mask: u64) {
+    fn generate_moves_pawn(&mut self, square: u8, vector: &mut Vec<Move>, piece: usize, mask: u64) {
         let pawn = 1u64 << square;
         let mut moves_bb;
         let mut en_passants = 0u64;
@@ -84,7 +83,7 @@ impl Board {
 
         while moves_bb != 0 {
             let removed = moves_bb & (moves_bb - 1);
-            let move_bb = (moves_bb - removed) & !mask;
+            let move_bb = (moves_bb - removed) & mask;
             if move_bb == 0 {moves_bb = removed; continue;}
 
             if (move_bb & RANK_MASK[0]) != 0 || (move_bb & RANK_MASK[7]) != 0 {
@@ -122,7 +121,7 @@ impl Board {
 
         while en_passants != 0 {
             let removed = en_passants & (en_passants - 1);
-            let move_bb = (en_passants - removed) & !mask;
+            let move_bb = (en_passants - removed) & mask;
 
             if move_bb == 0 {en_passants = removed; continue;}
 
@@ -139,13 +138,13 @@ impl Board {
         }
     }
 
-    fn generate_moves_knight(&self, square: u8, vector: &mut Vec<Move>, piece: usize, mask: u64) {
+    fn generate_moves_knight(&mut self, square: u8, vector: &mut Vec<Move>, piece: usize, mask: u64) {
         self.generate_moves_general(square, vector, piece, mask)
     }
 
-    fn generate_moves_king(&self, square: u8, vector: &mut Vec<Move>, piece: usize, _mask: u64) {
+    fn generate_moves_king(&mut self, square: u8, vector: &mut Vec<Move>, piece: usize, _mask: u64) {
         self.generate_moves_general(square, vector, piece, 
-                            if piece % 2 == 0 {self.attacks[BLACK_ATTACKS].0} else {self.attacks[WHITE_ATTACKS].0});
+                            if piece % 2 == 0 {!self.attacks[BLACK_ATTACKS].0} else {!self.attacks[WHITE_ATTACKS].0});
 
         let ( to_check1, to_check2): (bool, bool);
         let (index1, index2): (usize, usize);
@@ -205,30 +204,30 @@ impl Board {
     }
 
     // SLIDING
-    fn generate_moves_bishop(&self, square: u8, vector: &mut Vec<Move>, piece: usize, mask: u64) {
+    fn generate_moves_bishop(&mut self, square: u8, vector: &mut Vec<Move>, piece: usize, mask: u64) {
         self.generate_moves_general(square, vector, piece, mask)
     }
 
-    fn generate_moves_rook(&self, square: u8, vector: &mut Vec<Move>, piece: usize, mask: u64) {
+    fn generate_moves_rook(&mut self, square: u8, vector: &mut Vec<Move>, piece: usize, mask: u64) {
         self.generate_moves_general(square, vector, piece, mask)
     }
 
-    fn generate_moves_queen(&self, square: u8, vector: &mut Vec<Move>, piece: usize, mask: u64) {
+    fn generate_moves_queen(&mut self, square: u8, vector: &mut Vec<Move>, piece: usize, mask: u64) {
         self.generate_moves_general(square, vector, piece, mask)
     }
 
     #[inline(always)]
-    pub fn generate_moves_piece_on_square(&self, piece_i: usize, square: u8, vector: &mut Vec<Move>, mask: u64) {
+    pub fn generate_moves_piece_on_square(&mut self, piece_i: usize, square: u8, vector: &mut Vec<Move>, mask: u64) {
         PIECE_TO_MOVE_FUNCTION[piece_i](self, square, vector, piece_i, mask);
     }
 
     #[inline(always)]
-    pub fn generate_moves_piece(&self, piece_i: usize, vector: &mut Vec<Move>) {
+    pub fn generate_moves_piece(&mut self, piece_i: usize, vector: &mut Vec<Move>) {
         let mut piece = self.pieces[piece_i].0;
 
-        let mut mask: u64 = 0;
+        let mut mask: u64 = !0;
         if self.in_check && (piece_i != 0 && piece_i != 1) {
-            mask = !(self.check_ray_mask.0 & self.pieces[if self.side == board::BoardSide::White {BLACK_PIECES} else {WHITE_PIECES}].0);
+            mask = self.check_ray_mask.0 | self.piece_that_checks_loc;
         }
 
         while piece != 0 {
@@ -242,7 +241,7 @@ impl Board {
     }
 
     // OVERALL
-    pub fn generate_moves(&self, generate_for_both_colours: bool) -> Vec<Move> {
+    pub fn generate_moves(&mut self, generate_for_both_colours: bool) -> Vec<Move> {
         // Interesting source: https://chess.stcackexchange.com/questions/23135/what-is-the-average-number-of-legal-moves-per-turn
         // But this analyses legal moves, not pseudo-legal. Since we can only generate pseudo-legal moves, I'll double it to around 70
         let mut moves_vec: Vec<Move> = Vec::with_capacity(70);
@@ -261,6 +260,19 @@ impl Board {
             self.generate_moves_piece(i, &mut moves_vec);
             i += skip;
         }
-        moves_vec
+
+        let mut new_moves_vec = Vec::with_capacity(moves_vec.len());
+
+        // Ik, this is very very slow
+        for move_ in moves_vec {
+            let mut board = self.clone();
+            board.apply_move(&move_);
+
+            if !board.in_check {
+                new_moves_vec.push(move_);
+            }
+        }
+
+        new_moves_vec
     }
 }

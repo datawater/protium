@@ -70,23 +70,43 @@ impl Board {
 
     // OVERALL
     #[inline(always)]
-    pub fn generate_attacks_piece_on_square(&self, piece: usize, square: u8) -> BitBoard {
+    pub fn generate_attacks_piece_on_square(&mut self, piece: usize, square: u8) -> BitBoard {
         // This kinda bothers me but it's one if statement, it shouldn't be that bad
         assert!(piece <= BLACK_PAWN);
 
+        let attacks;
+
         // If piece is more than 9, so piece is pawn
         if piece > 9 {
-            Board::generate_attacks_pawn(self, square, 
+            attacks = Board::generate_attacks_pawn(self, square, 
                 unsafe { std::mem::transmute((piece % 2) as u8) }
             )
         } else {
             // I use a table of function pointers so the lookup is fast and easy
-            PIECE_TO_ATTACK_FUNCTION[piece](self, square)
+            attacks = PIECE_TO_ATTACK_FUNCTION[piece](self, square)
         }
+
+        if self.side == BoardSide::White && (self.pieces[WHITE_KING].0 & attacks.0 != 0) && piece % 2 == 1 {
+            if self.in_check {self.in_double_check = true}
+            self.in_check = true;
+
+            self.check_ray_mask = attacks;
+            self.piece_that_checks_loc = 1 << square;
+            self.piece_that_checks = piece;
+        } else if self.side == BoardSide::Black && (self.pieces[BLACK_KING].0 & attacks.0 != 0) && piece % 2 == 0 {
+            if self.in_check {self.in_double_check = true}
+            self.in_check = true;
+
+            self.check_ray_mask = attacks;
+            self.piece_that_checks_loc = 1 << square;
+            self.piece_that_checks = piece;
+        }
+
+        attacks
     }
 
     #[inline(always)]
-    pub fn generate_attacks_piece(&self, piece: usize) -> BitBoard {
+    pub fn generate_attacks_piece(&mut self, piece: usize) -> BitBoard {
         let mut n = self.pieces[piece].0;
         let mut attacks = BitBoard(0);
     
@@ -103,29 +123,15 @@ impl Board {
     }
 
     pub fn generate_attacks(&mut self) {
-        for (i, n) in self.pieces.iter().enumerate() {
+        for (i, n) in self.pieces.clone().iter().enumerate() {
             if i > board::pieces::BLACK_PAWN {break;}
 
             let attacks = self.generate_attacks_piece(i);
 
             if i % 2 == 0 {
                 self.attacks[board::attacks::WHITE_ATTACKS] |= attacks;
-
-                if self.side == BoardSide::Black && self.pieces[BLACK_KING].0 & attacks.0 != 0 {
-                    if self.in_check {self.in_double_check = true}
-                    self.in_check = true;
-
-                    self.check_ray_mask = attacks;
-                }
             } else {
                 self.attacks[board::attacks::BLACK_ATTACKS] |= attacks;
-
-                if self.side == BoardSide::White && self.pieces[WHITE_KING].0 & attacks.0 != 0 {
-                    if self.in_check {self.in_double_check = true}
-                    self.in_check = true;
-
-                    self.check_ray_mask = attacks;
-                }
             }
         }
     }

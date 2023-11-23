@@ -26,6 +26,8 @@ pub struct Board {
     pub in_check: bool,
     pub in_double_check: bool,
     pub check_ray_mask: BitBoard,
+    pub piece_that_checks_loc: u64,
+    pub piece_that_checks: usize,
 
     print_using: bool,
 }
@@ -65,7 +67,10 @@ impl Default for Board {
             in_check: Default::default(), 
             in_double_check: Default::default(), 
             check_ray_mask: BitBoard(u64::MAX), 
-            print_using: Default::default() }
+            print_using: Default::default(),
+            piece_that_checks_loc: 0,
+            piece_that_checks: NULL as usize
+        }
     }
 }
 
